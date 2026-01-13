@@ -1,0 +1,78 @@
+---
+interface Props {
+  timestamp: string;
+}
+
+const { timestamp } = Astro.props;
+---
+
+<div class="flex items-center gap-2 text-sm">
+  <div class="flex items-center gap-1.5">
+    <span id="freshness-dot" class="relative flex h-2 w-2">
+      <span id="freshness-ping" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+      <span id="freshness-core" class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+    </span>
+    <span id="freshness-text" class="text-gray-600 dark:text-gray-400">
+      Updated <span id="time-ago">just now</span>
+    </span>
+  </div>
+</div>
+
+<script is:inline define:vars={{ timestamp }}>
+  let currentTimestamp = timestamp;
+
+  function updateFreshness() {
+    const now = Date.now();
+    const then = new Date(currentTimestamp).getTime();
+    const diffSeconds = Math.floor((now - then) / 1000);
+    
+    const timeAgoEl = document.getElementById('time-ago');
+    const freshnessText = document.getElementById('freshness-text');
+    const freshnessDot = document.getElementById('freshness-core');
+    const freshnessPing = document.getElementById('freshness-ping');
+    
+    if (!timeAgoEl || !freshnessText || !freshnessDot || !freshnessPing) return;
+    
+    // Update time text
+    if (diffSeconds < 10) {
+      timeAgoEl.textContent = 'just now';
+    } else if (diffSeconds < 60) {
+      timeAgoEl.textContent = `${diffSeconds}s ago`;
+    } else if (diffSeconds < 3600) {
+      const minutes = Math.floor(diffSeconds / 60);
+      timeAgoEl.textContent = `${minutes}m ago`;
+    } else {
+      const hours = Math.floor(diffSeconds / 3600);
+      timeAgoEl.textContent = `${hours}h ago`;
+    }
+    
+    // Update freshness state with degradation
+    if (diffSeconds < 60) {
+      // Fresh: green with pulse
+      freshnessDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-green-500';
+      freshnessPing.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75';
+      freshnessText.className = 'text-gray-600 dark:text-gray-400';
+    } else if (diffSeconds < 120) {
+      // Aging: amber, no pulse
+      freshnessDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-amber-500';
+      freshnessPing.className = 'absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-0';
+      freshnessText.className = 'text-amber-600 dark:text-amber-400';
+    } else {
+      // Attempting refresh: gray but shows time
+      freshnessDot.className = 'relative inline-flex rounded-full h-2 w-2 bg-gray-400';
+      freshnessPing.className = 'absolute inline-flex h-full w-full rounded-full bg-gray-400 opacity-0';
+      freshnessText.className = 'text-gray-500 dark:text-gray-500';
+    }
+  }
+  
+  // Listen for metrics updates
+  window.addEventListener('metrics-updated', (event) => {
+    currentTimestamp = event.detail.timestamp;
+  });
+  
+  // Update immediately
+  updateFreshness();
+  
+  // Update every 5 seconds
+  setInterval(updateFreshness, 5000);
+</script>

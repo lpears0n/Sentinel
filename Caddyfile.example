@@ -1,0 +1,31 @@
+# Caddy Reverse Proxy Configuration Example
+# Place this in your Caddyfile on the reverse proxy server
+
+# Main hub interface
+hub.yourdomain.com {
+    reverse_proxy 10.10.10.20:4000
+    
+    # Optional: Add security headers
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer-when-downgrade"
+    }
+    
+    # Optional: Enable compression
+    encode gzip
+    
+    # Optional: Rate limiting
+    # rate_limit {
+    #     zone dynamic {
+    #         key {remote_host}
+    #         events 100
+    #         window 1m
+    #     }
+    # }
+}
+
+# Optional: Expose API separately (if needed)
+# api.hub.yourdomain.com {
+#     reverse_proxy 10.10.10.20:3001
+# }

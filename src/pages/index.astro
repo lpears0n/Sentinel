@@ -1,0 +1,246 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import MetricCard from '../components/MetricCard.astro';
+import ServiceLink from '../components/ServiceLink.astro';
+import ThemeToggle from '../components/ThemeToggle.astro';
+import DataFreshness from '../components/DataFreshness.astro';
+import { config } from '../config';
+import type { SystemMetrics } from '../types/metrics';
+
+let metrics: SystemMetrics;
+try {
+  const apiUrl = import.meta.env.PROD ? 'http://localhost:3001' : 'http://localhost:3001';
+  const response = await fetch(`${apiUrl}/api/metrics`, { signal: AbortSignal.timeout(5000) });
+  if (!response.ok) throw new Error('API unavailable');
+  metrics = await response.json();
+} catch (error) {
+  metrics = {
+    cpu: { usage: 0, status: 'unknown' },
+    memory: { used: 0, total: 0, percentage: 0, status: 'unknown' },
+    disk: { used: 0, total: 0, percentage: 0, status: 'unknown' },
+    uptime: { days: 0, hours: 0, minutes: 0, formatted: '0d 0h 0m', status: 'unknown' },
+    containers: { running: 0, total: 0, status: 'unknown' },
+    timestamp: new Date().toISOString()
+  };
+}
+---
+
+<BaseLayout title="Sentinel">
+  <ThemeToggle />
+  
+  <main class="min-h-screen px-6 py-12">
+    <div class="max-w-7xl mx-auto">
+      <!-- Identity Surface -->
+      <header class="mb-16 animate-fade-in">
+        <div class="max-w-3xl">
+          <h1 class="text-7xl font-bold mb-2 tracking-tight text-gray-900 dark:text-white">
+            Sentinel
+          </h1>
+          <p class="text-xl text-gray-600 dark:text-gray-400 mb-3">
+            Personal systems hub and curated public ingress.
+          </p>
+          <div class="flex items-center gap-6 text-sm">
+            <div class="flex items-center gap-2">
+              <span class="relative flex h-2.5 w-2.5">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+              </span>
+              <span class="text-gray-700 dark:text-gray-300 font-medium">
+                System nominal
+              </span>
+            </div>
+            <span class="text-gray-500 dark:text-gray-500">·</span>
+            <span class="text-gray-600 dark:text-gray-400" data-system="containers">
+              {metrics.containers.running} containers running
+            </span>
+            <span class="text-gray-500 dark:text-gray-500">·</span>
+            <span class="text-gray-600 dark:text-gray-400" data-system="uptime">
+              {metrics.uptime.formatted} uptime
+            </span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Services Section -->
+      <section class="mb-20">
+        <div class="mb-4">
+          <h2 class="text-2xl font-semibold mb-1 text-gray-800 dark:text-gray-200">
+            Services
+          </h2>
+          <p class="text-sm text-gray-500 dark:text-gray-500">
+            Public-facing endpoints exposed from this system.
+          </p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {config.services.map((service, index) => (
+            <ServiceLink 
+              {...service} 
+              delay={index * 100}
+            />
+          ))}
+        </div>
+      </section>
+
+      <!-- Metrics Section -->
+      <section>
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-2xl font-semibold text-gray-800 dark:text-gray-200">
+            System Metrics
+          </h2>
+          <DataFreshness timestamp={metrics.timestamp} />
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <!-- Row 1: CPU and Memory (2/3 width on desktop) -->
+          <MetricCard
+            title="CPU Usage"
+            value={metrics.cpu.usage.toFixed(1)}
+            unit="%"
+            status={metrics.cpu.status}
+            subtitle="Aggregate across all cores"
+            trend="steady"
+            delay={0}
+          />
+          
+          <MetricCard
+            title="Memory"
+            value={metrics.memory.used.toFixed(1)}
+            unit={`/ ${metrics.memory.total} GB`}
+            status={metrics.memory.status}
+            subtitle={`${metrics.memory.percentage.toFixed(1)}% utilized`}
+            trend="steady"
+            delay={100}
+          />
+          
+          <!-- Uptime spans full row for visual weight -->
+          <div class="md:col-span-1">
+            <MetricCard
+              title="Uptime"
+              value={metrics.uptime.formatted}
+              status={metrics.uptime.status}
+              subtitle="Host has been running"
+              delay={200}
+            />
+          </div>
+          
+          <!-- Row 2: Disk and Containers -->
+          <MetricCard
+            title="Disk Space"
+            value={metrics.disk.used}
+            unit={`/ ${metrics.disk.total} GB`}
+            status={metrics.disk.status}
+            subtitle={`${metrics.disk.percentage.toFixed(1)}% utilized`}
+            delay={300}
+          />
+          
+          <MetricCard
+            title="Containers"
+            value={metrics.containers.running}
+            unit={`/ ${metrics.containers.total}`}
+            status={metrics.containers.status}
+            subtitle="Active containers"
+            delay={400}
+          />
+        </div>
+      </section>
+
+      <!-- Footer -->
+      <footer class="mt-20 pt-8 border-t border-gray-200 dark:border-gray-800">
+        <div class="text-center space-y-3">
+          <p class="text-xs text-gray-400 dark:text-gray-500 italic">
+            This surface is intentionally read-only and incomplete.
+          </p>
+          <p class="text-sm text-gray-500 dark:text-gray-400">
+            Designed and operated by <span class="font-medium text-gray-700 dark:text-gray-300">Lucas Pearson</span>
+          </p>
+          <p class="text-xs text-gray-400 dark:text-gray-500">
+            Built with Astro & Tailwind CSS • {new Date().getFullYear()}
+          </p>
+        </div>
+      </footer>
+    </div>
+  </main>
+</BaseLayout>
+
+<script>
+  const REFRESH_INTERVAL = 30000; // 30 seconds
+  let previousMetrics: any = null;
+
+  async function refreshMetrics() {
+    try {
+      const response = await fetch('/api/metrics');
+      if (!response.ok) throw new Error('API error');
+      
+      const metrics = await response.json();
+      
+      // Update timestamp for freshness indicator
+      const freshnessEvent = new CustomEvent('metrics-updated', { detail: { timestamp: metrics.timestamp } });
+      window.dispatchEvent(freshnessEvent);
+      
+      // Calculate deltas if we have previous data
+      const cpuDelta = previousMetrics ? (metrics.cpu.usage - previousMetrics.cpu.usage).toFixed(1) : null;
+      const memDelta = previousMetrics ? (metrics.memory.percentage - previousMetrics.memory.percentage).toFixed(1) : null;
+      
+      // Update CPU
+      const cpuValue = document.querySelector('[data-metric="cpu-value"]');
+      const cpuTrend = document.querySelector('[data-metric="cpu-trend"]');
+      if (cpuValue) cpuValue.textContent = metrics.cpu.usage.toFixed(1);
+      if (cpuTrend && cpuDelta !== null) {
+        const delta = parseFloat(cpuDelta);
+        if (delta > 0.5) {
+          cpuTrend.innerHTML = `<span class="text-blue-600 dark:text-blue-400">▲ +${cpuDelta}%</span>`;
+        } else if (delta < -0.5) {
+          cpuTrend.innerHTML = `<span class="text-purple-600 dark:text-purple-400">▼ ${cpuDelta}%</span>`;
+        } else {
+          cpuTrend.innerHTML = `<span class="text-gray-500 dark:text-gray-500">— steady</span>`;
+        }
+      }
+      
+      // Update Memory
+      const memValue = document.querySelector('[data-metric="memory-value"]');
+      const memPercent = document.querySelector('[data-metric="memory-percent"]');
+      const memTrend = document.querySelector('[data-metric="memory-trend"]');
+      if (memValue) memValue.textContent = metrics.memory.used.toFixed(1);
+      if (memPercent) memPercent.textContent = `${metrics.memory.percentage.toFixed(1)}% utilized`;
+      if (memTrend && memDelta !== null) {
+        const delta = parseFloat(memDelta);
+        if (delta > 1) {
+          memTrend.innerHTML = `<span class="text-blue-600 dark:text-blue-400">▲ +${memDelta}%</span>`;
+        } else if (delta < -1) {
+          memTrend.innerHTML = `<span class="text-purple-600 dark:text-purple-400">▼ ${memDelta}%</span>`;
+        } else {
+          memTrend.innerHTML = `<span class="text-gray-500 dark:text-gray-500">— steady</span>`;
+        }
+      }
+      
+      // Update Uptime
+      const uptimeValue = document.querySelector('[data-metric="uptime-value"]');
+      if (uptimeValue) uptimeValue.textContent = metrics.uptime.formatted;
+      
+      // Update Disk
+      const diskValue = document.querySelector('[data-metric="disk-value"]');
+      const diskPercent = document.querySelector('[data-metric="disk-percent"]');
+      if (diskValue) diskValue.textContent = metrics.disk.used;
+      if (diskPercent) diskPercent.textContent = `${metrics.disk.percentage.toFixed(1)}% utilized`;
+      
+      // Update Containers
+      const containersValue = document.querySelector('[data-metric="containers-value"]');
+      if (containersValue && metrics.containers.total > 0) {
+        containersValue.textContent = metrics.containers.running;
+      }
+      
+      // Update system state in header
+      const systemUptime = document.querySelector('[data-system="uptime"]');
+      if (systemUptime) systemUptime.textContent = `${metrics.uptime.formatted} uptime`;
+      
+      previousMetrics = metrics;
+    } catch (error) {
+      console.error('Failed to refresh metrics:', error);
+    }
+  }
+
+  // Start auto-refresh
+  setInterval(refreshMetrics, REFRESH_INTERVAL);
+  // Initial refresh after 2 seconds
+  setTimeout(refreshMetrics, 2000);
+</script>

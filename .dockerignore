@@ -1,0 +1,12 @@
+# Sentinel - Docker ignore
+node_modules
+npm-debug.log
+.astro
+dist
+.env
+.env.*
+.git
+.gitignore
+.vscode
+*.md
+.DS_Store

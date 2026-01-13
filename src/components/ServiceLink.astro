@@ -1,0 +1,72 @@
+---
+import type { ServiceLink } from '../types/metrics';
+
+interface Props extends ServiceLink {
+  delay?: number;
+}
+
+const { name, url, description, icon, status = 'unknown', delay = 0 } = Astro.props as Props;
+
+const statusColors = {
+  online: 'bg-green-500',
+  offline: 'bg-red-500',
+  unknown: 'bg-gray-400'
+};
+---
+
+<a
+  href={url}
+  target="_blank"
+  rel="noopener noreferrer"
+  class="service-link group relative overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:border-gray-300 dark:hover:border-gray-700"
+  style={`animation-delay: ${delay}ms`}
+>
+  <div class="flex items-start gap-4">
+    {icon && (
+      <div class="text-3xl flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+        {icon}
+      </div>
+    )}
+    
+    <div class="flex-1 min-w-0">
+      <div class="flex items-center gap-2 mb-1">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+          {name}
+        </h3>
+        <span class={`w-2 h-2 rounded-full ${statusColors[status]}`} title={status}></span>
+      </div>
+      <p class="text-sm text-gray-600 dark:text-gray-400">
+        {description}
+      </p>
+    </div>
+    
+    <svg 
+      class="w-5 h-5 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 group-hover:translate-x-1 transition-all duration-300" 
+      fill="none" 
+      viewBox="0 0 24 24" 
+      stroke="currentColor"
+    >
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+    </svg>
+  </div>
+  
+  <!-- Decorative gradient on hover -->
+  <div class="absolute inset-0 bg-gradient-to-r from-transparent via-blue-50/50 to-transparent dark:via-blue-900/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+</a>
+
+<style>
+  .service-link {
+    animation: slideUp 0.5s ease-out both;
+  }
+  
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+</style>

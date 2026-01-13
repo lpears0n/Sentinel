@@ -1,0 +1,101 @@
+---
+import type { MetricStatus } from '../types/metrics';
+
+interface Props {
+  title: string;
+  value: string | number;
+  unit?: string;
+  status?: MetricStatus;
+  subtitle?: string;
+  delay?: number;
+  trend?: 'up' | 'down' | 'steady';
+  trendValue?: string;
+}
+
+const { title, value, unit, status = 'unknown', subtitle, delay = 0, trend, trendValue } = Astro.props as Props;
+
+const statusColors = {
+  healthy: 'bg-green-500/10 text-green-600 dark:text-green-400',
+  warning: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
+  critical: 'bg-red-500/10 text-red-600 dark:text-red-400',
+  unknown: 'bg-gray-500/10 text-gray-600 dark:text-gray-400'
+};
+
+const statusDots = {
+  healthy: 'bg-green-500',
+  warning: 'bg-yellow-500',
+  critical: 'bg-red-500',
+  unknown: 'bg-gray-500'
+};
+---
+
+<div 
+  class="metric-card group relative overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
+  style={`animation-delay: ${delay}ms`}
+>
+  <div class="flex items-start justify-between mb-4">
+    <h3 class="text-sm font-medium text-gray-600 dark:text-gray-400">
+      {title}
+    </h3>
+    <div 
+      class={`relative flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${statusColors[status]}`}
+      style={status === 'healthy' ? 'box-shadow: 0 0 10px rgba(34, 197, 94, 0.2);' : 
+             status === 'warning' ? 'box-shadow: 0 0 10px rgba(234, 179, 8, 0.2);' : 
+             status === 'critical' ? 'box-shadow: 0 0 10px rgba(239, 68, 68, 0.2);' : ''}
+    >
+      <span class={`w-1.5 h-1.5 rounded-full ${statusDots[status]} ${status === 'healthy' ? 'animate-pulse' : ''}`}></span>
+      <span class="sr-only">{status}</span>
+    </div>
+  </div>
+  
+  <div class="flex items-baseline gap-2">
+    <p class="text-3xl font-bold text-gray-900 dark:text-white" data-metric={`${title.toLowerCase().replace(/\s+/g, '-')}-value`}>
+      {value}
+    </p>
+    {unit && (
+      <span class="text-lg font-medium text-gray-500 dark:text-gray-400">
+        {unit}
+      </span>
+    )}
+    <span class="ml-2 text-xs font-medium flex items-center gap-1" data-metric={`${title.toLowerCase().replace(/\s+/g, '-')}-trend`}>
+      {trend && (
+        <span class={`${
+          trend === 'up' ? 'text-blue-600 dark:text-blue-400' : 
+          trend === 'down' ? 'text-purple-600 dark:text-purple-400' : 
+          'text-gray-500 dark:text-gray-500'
+        }`}>
+          {trend === 'up' && '▲'}
+          {trend === 'down' && '▼'}
+          {trend === 'steady' && '—'}
+          {trendValue && ` ${trendValue}`}
+        </span>
+      )}
+    </span>
+  </div>
+  
+  {subtitle && (
+    <p class="mt-2 text-sm text-gray-500 dark:text-gray-500" data-metric={`${title.toLowerCase().replace(/\s+/g, '-')}-percent`}>
+      {subtitle}
+    </p>
+  )}
+  
+  <!-- Decorative gradient on hover -->
+  <div class="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
+</div>
+
+<style>
+  .metric-card {
+    animation: slideUp 0.5s ease-out both;
+  }
+  
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+</style>

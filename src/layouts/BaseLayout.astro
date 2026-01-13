@@ -1,0 +1,116 @@
+---
+interface Props {
+  title: string;
+}
+
+const { title } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="description" content="Sentinel - Personal systems hub and curated public ingress" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <title>{title}</title>
+  </head>
+  <body class="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors duration-300 relative overflow-x-hidden">
+    <!-- Ambient background gradient -->
+    <div class="ambient-gradient"></div>
+    <div class="relative z-10">
+      <slot />
+    </div>
+  </body>
+</html>
+
+<style is:global>
+  :root {
+    --background: 0 0% 98%;
+    --foreground: 0 0% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 10%;
+    --border: 0 0% 90%;
+  }
+
+  .dark {
+    --background: 0 0% 5%;
+    --foreground: 0 0% 95%;
+    --card: 0 0% 8%;
+    --card-foreground: 0 0% 95%;
+    --border: 0 0% 15%;
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    min-height: 100vh;
+  }
+
+  .ambient-gradient {
+    position: fixed;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: 
+      radial-gradient(ellipse 70% 50% at 25% 25%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
+      radial-gradient(ellipse 70% 50% at 75% 75%, rgba(236, 72, 153, 0.12) 0%, transparent 50%),
+      radial-gradient(ellipse 90% 70% at 50% 50%, rgba(168, 85, 247, 0.08) 0%, transparent 50%);
+    animation: ambientShiftLight 90s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 1;
+  }
+
+  .dark .ambient-gradient {
+    background: 
+      radial-gradient(ellipse 80% 50% at 20% 30%, rgba(59, 130, 246, 0.12) 0%, transparent 50%),
+      radial-gradient(ellipse 80% 50% at 80% 70%, rgba(139, 92, 246, 0.12) 0%, transparent 50%),
+      radial-gradient(ellipse 100% 80% at 40% 50%, rgba(236, 72, 153, 0.08) 0%, transparent 50%);
+    animation: ambientShift 120s ease-in-out infinite;
+  }
+
+  @keyframes ambientShiftLight {
+    0%, 100% {
+      transform: translate(0, 0) rotate(0deg) scale(1);
+    }
+    25% {
+      transform: translate(-10%, 10%) rotate(90deg) scale(1.15);
+    }
+    50% {
+      transform: translate(10%, -10%) rotate(180deg) scale(0.9);
+    }
+    75% {
+      transform: translate(-10%, -10%) rotate(270deg) scale(1.1);
+    }
+  }
+
+  @keyframes ambientShift {
+    0%, 100% {
+      transform: translate(0, 0) rotate(0deg) scale(1);
+    }
+    25% {
+      transform: translate(8%, -8%) rotate(90deg) scale(1.1);
+    }
+    50% {
+      transform: translate(-8%, 8%) rotate(180deg) scale(0.95);
+    }
+    75% {
+      transform: translate(8%, 8%) rotate(270deg) scale(1.05);
+    }
+  }
+</style>
