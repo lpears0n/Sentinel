@@ -8,21 +8,21 @@ export const config: HubConfig = {
   services: [
     {
       name: 'Portfolio',
-      url: 'https://yourportfolio.com',
-      description: 'Personal website and portfolio',
+      url: 'https://lpearson.dev/',
+      description: 'Learn about me and my passions',
       icon: '🌐',
       status: 'online'
     },
     {
       name: 'Status Page',
-      url: 'https://status.yoursite.com',
-      description: 'Service availability and uptime',
+      url: 'https://status.srv.lpearson.dev/status/public',
+      description: 'Service availability and uptime for public services',
       icon: '📊',
       status: 'online'
     },
     {
       name: 'GitHub',
-      url: 'https://github.com/yourusername',
+      url: 'https://github.com/lpears0n',
       description: 'Open source projects and contributions',
       icon: '💻',
       status: 'online'
