@@ -7,22 +7,14 @@ import DataFreshness from '../components/DataFreshness.astro';
 import { config } from '../config';
 import type { SystemMetrics } from '../types/metrics';
 
-let metrics: SystemMetrics;
-try {
-  const apiUrl = import.meta.env.PROD ? '' : 'http://localhost:3001';
-  const response = await fetch(`${apiUrl}/api/metrics`, { signal: AbortSignal.timeout(5000) });
-  if (!response.ok) throw new Error('API unavailable');
-  metrics = await response.json();
-} catch (error) {
-  metrics = {
-    cpu: { usage: 0, status: 'unknown' },
-    memory: { used: 0, total: 0, percentage: 0, status: 'unknown' },
-    disk: { used: 0, total: 0, percentage: 0, status: 'unknown' },
-    uptime: { days: 0, hours: 0, minutes: 0, formatted: '0d 0h 0m', status: 'unknown' },
-    containers: { running: 0, total: 0, status: 'unknown' },
-    timestamp: new Date().toISOString()
-  };
-}
+const metrics: SystemMetrics = {
+  cpu: { usage: 0, status: 'unknown' },
+  memory: { used: 0, total: 0, percentage: 0, status: 'unknown' },
+  disk: { used: 0, total: 0, percentage: 0, status: 'unknown' },
+  uptime: { days: 0, hours: 0, minutes: 0, formatted: '—', status: 'unknown' },
+  containers: { running: 0, total: 0, status: 'unknown' },
+  timestamp: new Date().toISOString()
+};
 ---
 
 <BaseLayout title="Sentinel">
@@ -171,6 +163,41 @@ try {
   const REFRESH_INTERVAL = 30000; // 30 seconds
   let previousMetrics: any = null;
 
+  const statusColors = {
+    healthy: 'bg-green-500/10 text-green-600 dark:text-green-400',
+    warning: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
+    critical: 'bg-red-500/10 text-red-600 dark:text-red-400',
+    unknown: 'bg-gray-500/10 text-gray-600 dark:text-gray-400'
+  };
+
+  const statusDots = {
+    healthy: 'bg-green-500 animate-pulse',
+    warning: 'bg-yellow-500',
+    critical: 'bg-red-500',
+    unknown: 'bg-gray-500'
+  };
+
+  const statusGlow = {
+    healthy: 'box-shadow: 0 0 10px rgba(34, 197, 94, 0.2);',
+    warning: 'box-shadow: 0 0 10px rgba(234, 179, 8, 0.2);',
+    critical: 'box-shadow: 0 0 10px rgba(239, 68, 68, 0.2);',
+    unknown: ''
+  };
+
+  function updateMetricStatus(metricKey: string, status: string) {
+    const badge = document.querySelector(`[data-metric="${metricKey}-status-badge"]`);
+    const dot = document.querySelector(`[data-metric="${metricKey}-status-dot"]`);
+    
+    if (badge && status in statusColors) {
+      badge.className = `relative flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${statusColors[status]}`;
+      badge.setAttribute('style', statusGlow[status]);
+    }
+    
+    if (dot && status in statusDots) {
+      dot.className = `w-1.5 h-1.5 rounded-full ${statusDots[status]}`;
+    }
+  }
+
   async function refreshMetrics() {
     try {
       const response = await fetch('/api/metrics');
@@ -190,6 +217,7 @@ try {
       const cpuValue = document.querySelector('[data-metric="cpu-value"]');
       const cpuTrend = document.querySelector('[data-metric="cpu-trend"]');
       if (cpuValue) cpuValue.textContent = metrics.cpu.usage.toFixed(1);
+      updateMetricStatus('cpu', metrics.cpu.status);
       if (cpuTrend && cpuDelta !== null) {
         const delta = parseFloat(cpuDelta);
         if (delta > 0.5) {
@@ -203,10 +231,13 @@ try {
       
       // Update Memory
       const memValue = document.querySelector('[data-metric="memory-value"]');
+      const memUnit = document.querySelector('[data-metric="memory-unit"]');
       const memPercent = document.querySelector('[data-metric="memory-percent"]');
       const memTrend = document.querySelector('[data-metric="memory-trend"]');
       if (memValue) memValue.textContent = metrics.memory.used.toFixed(1);
+      if (memUnit) memUnit.textContent = `/ ${metrics.memory.total} GB`;
       if (memPercent) memPercent.textContent = `${metrics.memory.percentage.toFixed(1)}% utilized`;
+      updateMetricStatus('memory', metrics.memory.status);
       if (memTrend && memDelta !== null) {
         const delta = parseFloat(memDelta);
         if (delta > 1) {
@@ -221,18 +252,27 @@ try {
       // Update Uptime
       const uptimeValue = document.querySelector('[data-metric="uptime-value"]');
       if (uptimeValue) uptimeValue.textContent = metrics.uptime.formatted;
+      updateMetricStatus('uptime', metrics.uptime.status);
       
       // Update Disk
       const diskValue = document.querySelector('[data-metric="disk-value"]');
+      const diskUnit = document.querySelector('[data-metric="disk-unit"]');
       const diskPercent = document.querySelector('[data-metric="disk-percent"]');
       if (diskValue) diskValue.textContent = metrics.disk.used;
+      if (diskUnit) diskUnit.textContent = `/ ${metrics.disk.total} GB`;
       if (diskPercent) diskPercent.textContent = `${metrics.disk.percentage.toFixed(1)}% utilized`;
+      updateMetricStatus('disk', metrics.disk.status);
       
       // Update Containers
       const containersValue = document.querySelector('[data-metric="containers-value"]');
+      const containersUnit = document.querySelector('[data-metric="containers-unit"]');
       if (containersValue && metrics.containers.total > 0) {
         containersValue.textContent = metrics.containers.running;
       }
+      if (containersUnit && metrics.containers.total > 0) {
+        containersUnit.textContent = `/ ${metrics.containers.total}`;
+      }
+      updateMetricStatus('containers', metrics.containers.status);
       
       // Update system state in header
       const systemUptime = document.querySelector('[data-system="uptime"]');
