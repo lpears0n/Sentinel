@@ -9,7 +9,7 @@ import type { SystemMetrics } from '../types/metrics';
 
 let metrics: SystemMetrics;
 try {
-  const apiUrl = import.meta.env.PROD ? 'http://localhost:3001' : 'http://localhost:3001';
+  const apiUrl = import.meta.env.PROD ? '' : 'http://localhost:3001';
   const response = await fetch(`${apiUrl}/api/metrics`, { signal: AbortSignal.timeout(5000) });
   if (!response.ok) throw new Error('API unavailable');
   metrics = await response.json();
