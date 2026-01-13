@@ -3,6 +3,7 @@ import type { MetricStatus } from '../types/metrics';
 
 interface Props {
   title: string;
+  metricKey: string;
   value: string | number;
   unit?: string;
   status?: MetricStatus;
@@ -12,7 +13,9 @@ interface Props {
   trendValue?: string;
 }
 
-const { title, value, unit, status = 'unknown', subtitle, delay = 0, trend, trendValue } = Astro.props as Props;
+
+const { title, metricKey, value, unit, status = 'unknown', subtitle, delay = 0, trend, trendValue } = Astro.props as Props;
+
 
 const statusColors = {
   healthy: 'bg-green-500/10 text-green-600 dark:text-green-400',
@@ -32,6 +35,8 @@ const statusDots = {
 <div 
   class="metric-card group relative overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
   style={`animation-delay: ${delay}ms`}
+  data-metric-card={metricKey}
+  data-status={status}
 >
   <div class="flex items-start justify-between mb-4">
     <h3 class="text-sm font-medium text-gray-600 dark:text-gray-400">
@@ -42,22 +47,23 @@ const statusDots = {
       style={status === 'healthy' ? 'box-shadow: 0 0 10px rgba(34, 197, 94, 0.2);' : 
              status === 'warning' ? 'box-shadow: 0 0 10px rgba(234, 179, 8, 0.2);' : 
              status === 'critical' ? 'box-shadow: 0 0 10px rgba(239, 68, 68, 0.2);' : ''}
+      data-metric={`${metricKey}-status-badge`}
     >
-      <span class={`w-1.5 h-1.5 rounded-full ${statusDots[status]} ${status === 'healthy' ? 'animate-pulse' : ''}`}></span>
+      <span class={`w-1.5 h-1.5 rounded-full ${statusDots[status]} ${status === 'healthy' ? 'animate-pulse' : ''}`} data-metric={`${metricKey}-status-dot`}></span>
       <span class="sr-only">{status}</span>
     </div>
   </div>
   
   <div class="flex items-baseline gap-2">
-    <p class="text-3xl font-bold text-gray-900 dark:text-white" data-metric={`${title.toLowerCase().replace(/\s+/g, '-')}-value`}>
+    <p class="text-3xl font-bold text-gray-900 dark:text-white" data-metric={`${metricKey}-value`}>
       {value}
     </p>
     {unit && (
-      <span class="text-lg font-medium text-gray-500 dark:text-gray-400">
+      <span class="text-lg font-medium text-gray-500 dark:text-gray-400" data-metric={`${metricKey}-unit`}>
         {unit}
       </span>
     )}
-    <span class="ml-2 text-xs font-medium flex items-center gap-1" data-metric={`${title.toLowerCase().replace(/\s+/g, '-')}-trend`}>
+    <span class="ml-2 text-xs font-medium flex items-center gap-1" data-metric={`${metricKey}-trend`}>
       {trend && (
         <span class={`${
           trend === 'up' ? 'text-blue-600 dark:text-blue-400' : 
@@ -74,7 +80,7 @@ const statusDots = {
   </div>
   
   {subtitle && (
-    <p class="mt-2 text-sm text-gray-500 dark:text-gray-500" data-metric={`${title.toLowerCase().replace(/\s+/g, '-')}-percent`}>
+    <p class="mt-2 text-sm text-gray-500 dark:text-gray-500" data-metric={`${metricKey}-percent`}>
       {subtitle}
     </p>
   )}
