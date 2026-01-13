@@ -94,6 +94,7 @@ try {
           <!-- Row 1: CPU and Memory (2/3 width on desktop) -->
           <MetricCard
             title="CPU Usage"
+            metricKey="cpu"
             value={metrics.cpu.usage.toFixed(1)}
             unit="%"
             status={metrics.cpu.status}
@@ -104,6 +105,7 @@ try {
           
           <MetricCard
             title="Memory"
+            metricKey="memory"
             value={metrics.memory.used.toFixed(1)}
             unit={`/ ${metrics.memory.total} GB`}
             status={metrics.memory.status}
@@ -116,6 +118,7 @@ try {
           <div class="md:col-span-1">
             <MetricCard
               title="Uptime"
+              metricKey="uptime"
               value={metrics.uptime.formatted}
               status={metrics.uptime.status}
               subtitle="Host has been running"
@@ -126,6 +129,7 @@ try {
           <!-- Row 2: Disk and Containers -->
           <MetricCard
             title="Disk Space"
+            metricKey="disk"
             value={metrics.disk.used}
             unit={`/ ${metrics.disk.total} GB`}
             status={metrics.disk.status}
@@ -135,6 +139,7 @@ try {
           
           <MetricCard
             title="Containers"
+            metricKey="containers"
             value={metrics.containers.running}
             unit={`/ ${metrics.containers.total}`}
             status={metrics.containers.status}

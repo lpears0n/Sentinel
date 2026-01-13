@@ -3,6 +3,7 @@ import type { MetricStatus } from '../types/metrics';
 
 interface Props {
   title: string;
+  metricKey: string;
   value: string | number;
   unit?: string;
   status?: MetricStatus;
@@ -12,7 +13,9 @@ interface Props {
   trendValue?: string;
 }
 
-const { title, value, unit, status = 'unknown', subtitle, delay = 0, trend, trendValue } = Astro.props as Props;
+
+const { title, metricKey, value, unit, status = 'unknown', subtitle, delay = 0, trend, trendValue } = Astro.props as Props;
+
 
 const statusColors = {
   healthy: 'bg-green-500/10 text-green-600 dark:text-green-400',
@@ -49,7 +52,7 @@ const statusDots = {
   </div>
   
   <div class="flex items-baseline gap-2">
-    <p class="text-3xl font-bold text-gray-900 dark:text-white" data-metric={`${title.toLowerCase().replace(/\s+/g, '-')}-value`}>
+    <p class="text-3xl font-bold text-gray-900 dark:text-white" data-metric={`${metricKey}-value`}>
       {value}
     </p>
     {unit && (
@@ -57,7 +60,7 @@ const statusDots = {
         {unit}
       </span>
     )}
-    <span class="ml-2 text-xs font-medium flex items-center gap-1" data-metric={`${title.toLowerCase().replace(/\s+/g, '-')}-trend`}>
+    <span class="ml-2 text-xs font-medium flex items-center gap-1" data-metric={`${metricKey}-trend`}>
       {trend && (
         <span class={`${
           trend === 'up' ? 'text-blue-600 dark:text-blue-400' : 
@@ -74,7 +77,7 @@ const statusDots = {
   </div>
   
   {subtitle && (
-    <p class="mt-2 text-sm text-gray-500 dark:text-gray-500" data-metric={`${title.toLowerCase().replace(/\s+/g, '-')}-percent`}>
+    <p class="mt-2 text-sm text-gray-500 dark:text-gray-500" data-metric={`${metricKey}-percent`}>
       {subtitle}
     </p>
   )}
