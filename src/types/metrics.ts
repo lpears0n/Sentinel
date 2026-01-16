@@ -1,6 +1,6 @@
 /**
  * System Metrics Data Model
- * All metrics are sanitized and high-level only
+ * All metrics are sourced from VM-level metrics service
  */
 
 export interface SystemMetrics {
@@ -18,23 +18,17 @@ export interface CPUMetrics {
 }
 
 export interface MemoryMetrics {
-  used: number; // GB
-  total: number; // GB
   percentage: number; // 0-100
   status: MetricStatus;
 }
 
 export interface DiskMetrics {
-  used: number; // GB
-  total: number; // GB
   percentage: number; // 0-100
   status: MetricStatus;
 }
 
 export interface UptimeMetrics {
-  days: number;
-  hours: number;
-  minutes: number;
+  seconds: number;
   formatted: string; // e.g., "5d 12h 34m"
   status: MetricStatus;
 }

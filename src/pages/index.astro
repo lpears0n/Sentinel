@@ -7,14 +7,27 @@ import DataFreshness from '../components/DataFreshness.astro';
 import { config } from '../config';
 import type { SystemMetrics } from '../types/metrics';
 
-const metrics: SystemMetrics = {
+// Fetch metrics from API at build time (will be hydrated client-side)
+let metrics: SystemMetrics = {
   cpu: { usage: 0, status: 'unknown' },
-  memory: { used: 0, total: 0, percentage: 0, status: 'unknown' },
-  disk: { used: 0, total: 0, percentage: 0, status: 'unknown' },
-  uptime: { days: 0, hours: 0, minutes: 0, formatted: '—', status: 'unknown' },
+  memory: { percentage: 0, status: 'unknown' },
+  disk: { percentage: 0, status: 'unknown' },
+  uptime: { seconds: 0, formatted: '—', status: 'unknown' },
   containers: { running: 0, total: 0, status: 'unknown' },
   timestamp: new Date().toISOString()
 };
+
+try {
+  const apiUrl = import.meta.env.PUBLIC_API_URL || 'http://localhost:3001';
+  const response = await fetch(`${apiUrl}/api/metrics`, {
+    signal: AbortSignal.timeout(5000)
+  });
+  if (response.ok) {
+    metrics = await response.json();
+  }
+} catch (error) {
+  console.warn('[Sentinel] Failed to fetch metrics at build time:', error.message);
+}
 ---
 
 <BaseLayout title="Sentinel">
@@ -90,7 +103,7 @@ const metrics: SystemMetrics = {
             value={metrics.cpu.usage.toFixed(1)}
             unit="%"
             status={metrics.cpu.status}
-            subtitle="Aggregate across all cores"
+            subtitle="VM-wide CPU usage"
             trend="steady"
             delay={0}
           />
@@ -98,10 +111,10 @@ const metrics: SystemMetrics = {
           <MetricCard
             title="Memory"
             metricKey="memory"
-            value={metrics.memory.used.toFixed(1)}
-            unit={`/ ${metrics.memory.total} GB`}
+            value={metrics.memory.percentage.toFixed(1)}
+            unit="%"
             status={metrics.memory.status}
-            subtitle={`${metrics.memory.percentage.toFixed(1)}% utilized`}
+            subtitle="VM memory pressure"
             trend="steady"
             delay={100}
           />
@@ -113,7 +126,7 @@ const metrics: SystemMetrics = {
               metricKey="uptime"
               value={metrics.uptime.formatted}
               status={metrics.uptime.status}
-              subtitle="Host has been running"
+              subtitle="VM uptime"
               delay={200}
             />
           </div>
@@ -122,10 +135,10 @@ const metrics: SystemMetrics = {
           <MetricCard
             title="Disk Space"
             metricKey="disk"
-            value={metrics.disk.used}
-            unit={`/ ${metrics.disk.total} GB`}
+            value={metrics.disk.percentage.toFixed(1)}
+            unit="%"
             status={metrics.disk.status}
-            subtitle={`${metrics.disk.percentage.toFixed(1)}% utilized`}
+            subtitle="Root filesystem usage"
             delay={300}
           />
           
@@ -212,6 +225,7 @@ const metrics: SystemMetrics = {
       // Calculate deltas if we have previous data
       const cpuDelta = previousMetrics ? (metrics.cpu.usage - previousMetrics.cpu.usage).toFixed(1) : null;
       const memDelta = previousMetrics ? (metrics.memory.percentage - previousMetrics.memory.percentage).toFixed(1) : null;
+      const diskDelta = previousMetrics ? (metrics.disk.percentage - previousMetrics.disk.percentage).toFixed(1) : null;
       
       // Update CPU
       const cpuValue = document.querySelector('[data-metric="cpu-value"]');
@@ -232,11 +246,9 @@ const metrics: SystemMetrics = {
       // Update Memory
       const memValue = document.querySelector('[data-metric="memory-value"]');
       const memUnit = document.querySelector('[data-metric="memory-unit"]');
-      const memPercent = document.querySelector('[data-metric="memory-percent"]');
       const memTrend = document.querySelector('[data-metric="memory-trend"]');
-      if (memValue) memValue.textContent = metrics.memory.used.toFixed(1);
-      if (memUnit) memUnit.textContent = `/ ${metrics.memory.total} GB`;
-      if (memPercent) memPercent.textContent = `${metrics.memory.percentage.toFixed(1)}% utilized`;
+      if (memValue) memValue.textContent = metrics.memory.percentage.toFixed(1);
+      if (memUnit) memUnit.textContent = '%';
       updateMetricStatus('memory', metrics.memory.status);
       if (memTrend && memDelta !== null) {
         const delta = parseFloat(memDelta);
@@ -257,10 +269,8 @@ const metrics: SystemMetrics = {
       // Update Disk
       const diskValue = document.querySelector('[data-metric="disk-value"]');
       const diskUnit = document.querySelector('[data-metric="disk-unit"]');
-      const diskPercent = document.querySelector('[data-metric="disk-percent"]');
-      if (diskValue) diskValue.textContent = metrics.disk.used;
-      if (diskUnit) diskUnit.textContent = `/ ${metrics.disk.total} GB`;
-      if (diskPercent) diskPercent.textContent = `${metrics.disk.percentage.toFixed(1)}% utilized`;
+      if (diskValue) diskValue.textContent = metrics.disk.percentage.toFixed(1);
+      if (diskUnit) diskUnit.textContent = '%';
       updateMetricStatus('disk', metrics.disk.status);
       
       // Update Containers

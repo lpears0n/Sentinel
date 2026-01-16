@@ -43,32 +43,70 @@ sentinel/
 
 ## Metrics Data Model
 
+### Architecture: VM-Level Metrics
+
+**Critical Design Principle**: Sentinel is a **renderer, not a sensor**.
+
+Sentinel runs in a Docker container and **must not** compute system metrics itself. All system health metrics (CPU, memory, disk, uptime) are sourced from a VM-local metrics service.
+
+**Authoritative Source**: `http://10.10.10.20:9101/metrics`
+
+This service provides:
+- **CPU**: VM-wide aggregate usage across all cores
+- **Memory**: VM memory pressure (using MemAvailable)
+- **Disk**: VM root filesystem usage
+- **Uptime**: VM uptime (not container uptime)
+
+**Why this matters**:
+- Container metrics would reflect container limits, not VM reality
+- Restarting Sentinel would reset uptime if computed locally
+- CPU/memory readings inside containers are misleading
+- This ensures metrics remain accurate across container restarts
+
+**Caching**: Metrics are cached for 2-5 seconds to reduce load on the metrics service.
+
 ### SystemMetrics Interface
 
 ```typescript
 interface SystemMetrics {
-  cpu: CPUMetrics;           // CPU usage percentage
-  memory: MemoryMetrics;     // Memory usage (used/total GB)
-  disk: DiskMetrics;         // Disk usage (used/total GB)
-  uptime: UptimeMetrics;     // System uptime
-  containers: ContainerMetrics; // Docker container count
+  cpu: CPUMetrics;           // VM CPU usage percentage
+  memory: MemoryMetrics;     // VM memory usage percentage
+  disk: DiskMetrics;         // VM disk usage percentage
+  uptime: UptimeMetrics;     // VM uptime
+  containers: ContainerMetrics; // Docker container count (local)
   timestamp: string;         // ISO timestamp
 }
 ```
 
 Each metric includes:
-- **Value**: The actual measurement
+- **Value**: The actual measurement (rounded for display)
 - **Status**: `healthy` | `warning` | `critical` | `unknown`
+
+### VM Metrics Service Contract
+
+The metrics service at `http://10.10.10.20:9101/metrics` returns:
+
+```json
+{
+  "cpu": { "usage_percent": 12.4 },
+  "memory": { "used_percent": 57.1 },
+  "disk": { "used_percent": 63.8 },
+  "uptime": { "seconds": 184293 }
+}
+```
+
+Sentinel transforms this into a user-friendly format with status indicators.
 
 ### Security Considerations
 
 Metrics are intentionally **sanitized** and **high-level**:
 
 ✅ **Included**:
-- Aggregate CPU usage
-- Memory/disk usage (GB)
-- Uptime duration
-- Container counts
+- VM-wide aggregate CPU usage (percentage only)
+- VM memory pressure (percentage only)
+- VM disk usage (percentage only)
+- VM uptime duration
+- Container counts (running/total)
 
 ❌ **Excluded**:
 - IP addresses
@@ -76,23 +114,20 @@ Metrics are intentionally **sanitized** and **high-level**:
 - Hardware identifiers
 - Process lists
 - Container IDs, names, or labels
+- Absolute memory/disk values (GB)
 - Anything exploitable
 
 #### Docker Socket Exposure
 
-The container requires **read-only** access to the Docker socket for container metrics.
+The container requires **read-only** access to the Docker socket **only for container counts**.
 
 **Security measures**:
 - Socket is mounted as read-only (`:ro`)
-- Only aggregate counts are exposed via API
+- Only aggregate counts are exposed via API (running/total)
 - No container identifiers (IDs, names, labels) are ever returned
 - Container is only accessible via reverse proxy
 - API errors never leak internal details
-
-**Future hardening options**:
-- Move metrics collection to a dedicated sidecar container
-- Use Docker API with limited permissions
-- Implement metrics caching layer
+- System metrics come from external service, not Docker API
 
 ## Development
 
@@ -129,11 +164,30 @@ The container requires **read-only** access to the Docker socket for container m
 
 ### Configuration
 
+#### Environment Variables
+
+The API supports the following environment variables:
+
+- `NODE_ENV`: Set to `production` for production mode (default: `development`)
+- `API_PORT`: Port for the API server (default: `3001`)
+- `VM_METRICS_URL`: URL of the VM metrics service (default: `http://10.10.10.20:9101/metrics`)
+
+Configure in [docker-compose.yml](docker-compose.yml):
+
+```yaml
+environment:
+  - NODE_ENV=production
+  - API_PORT=3001
+  - VM_METRICS_URL=http://10.10.10.20:9101/metrics
+```
+
+#### Application Configuration
+
 Edit [src/config/index.ts](src/config/index.ts) to customize:
 - Service links
 - Hub name and tagline
-- Metrics refresh interval
-- API endpoint
+- Metrics refresh interval (client-side)
+- API endpoint (frontend)
 
 ## Production Deployment
 
@@ -221,31 +275,25 @@ The application is observable and maintainable:
 
 #### `GET /api/metrics`
 
-Returns current system metrics:
+Returns current system metrics (sourced from VM metrics service):
 
 ```json
 {
   "cpu": {
-    "usage": 42.5,
+    "usage": 12.4,
     "status": "healthy"
   },
   "memory": {
-    "used": 12.4,
-    "total": 32,
-    "percentage": 38.75,
+    "percentage": 57.1,
     "status": "healthy"
   },
   "disk": {
-    "used": 245,
-    "total": 512,
-    "percentage": 47.85,
+    "percentage": 63.8,
     "status": "healthy"
   },
   "uptime": {
-    "days": 5,
-    "hours": 12,
-    "minutes": 34,
-    "formatted": "5d 12h 34m",
+    "seconds": 184293,
+    "formatted": "2d 3h 11m",
     "status": "healthy"
   },
   "containers": {
@@ -253,9 +301,11 @@ Returns current system metrics:
     "total": 15,
     "status": "healthy"
   },
-  "timestamp": "2026-01-12T10:30:00.000Z"
+  "timestamp": "2026-01-15T10:30:00.000Z"
 }
 ```
+
+**Note**: CPU, memory, disk, and uptime are fetched from `http://10.10.10.20:9101/metrics` and represent VM-wide metrics, not container-local values. Container counts are queried locally via Docker API.
 
 #### `GET /health`
 
