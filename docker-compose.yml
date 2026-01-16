@@ -10,12 +10,12 @@ services:
     ports:
       # Map to private IP - adjust based on your VM setup
       - "10.10.10.20:4000:4000"  # Frontend
-      - "10.10.10.20:3101:3001"  # API (optional, can be internal only)
+      - "10.10.10.20:3101:4001"  # API (optional, can be internal only)
     environment:
       - NODE_ENV=production
       - API_PORT=3001
       # VM metrics service endpoint (authoritative source for system metrics)
-      - VM_METRICS_URL=http://10.10.10.20:9101/metrics
+      - VM_METRICS_URL=http://host.docker.internal:9101/metrics
     volumes:
       # Mount Docker socket for container metrics (read-only)
       - /var/run/docker.sock:/var/run/docker.sock:ro
