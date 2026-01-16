@@ -1,13 +1,15 @@
 import express from 'express';
 import cors from 'cors';
-import os from 'os';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 const app = express();
-const PORT = process.env.API_PORT || 3001;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
+// VM metrics service configuration
+const VM_METRICS_URL = process.env.VM_METRICS_URL || 'http://10.10.10.20:9101/metrics';
+const CACHE_TTL_MS = 3000; // 3 seconds cache
 
 // Disable Express stack traces in production
 if (IS_PRODUCTION) {
@@ -26,6 +28,12 @@ app.use((req, res, next) => {
 });
 
 /**
+ * Metrics cache
+ */
+let cachedMetrics = null;
+let cacheTimestamp = 0;
+
+/**
  * Calculate metric status based on thresholds
  */
 function getMetricStatus(percentage, criticalThreshold = 90, warningThreshold = 75) {
@@ -35,100 +43,60 @@ function getMetricStatus(percentage, criticalThreshold = 90, warningThreshold = 
 }
 
 /**
- * Get CPU usage percentage
+ * Fetch VM metrics from authoritative source
  */
-async function getCPUUsage() {
-  const cpus = os.cpus();
-  let totalIdle = 0;
-  let totalTick = 0;
+async function fetchVMMetrics() {
+  const now = Date.now();
+  
+  // Return cached metrics if still fresh
+  if (cachedMetrics && (now - cacheTimestamp) < CACHE_TTL_MS) {
+    return cachedMetrics;
+  }
 
-  cpus.forEach(cpu => {
-    for (const type in cpu.times) {
-      totalTick += cpu.times[type];
-    }
-    totalIdle += cpu.times.idle;
-  });
-
-  const idle = totalIdle / cpus.length;
-  const total = totalTick / cpus.length;
-  const usage = 100 - Math.floor((idle / total) * 100);
-
-  return {
-    usage: Math.max(0, Math.min(100, usage)),
-    status: getMetricStatus(usage)
-  };
-}
-
-/**
- * Get memory metrics
- */
-function getMemoryMetrics() {
-  const totalMem = os.totalmem();
-  const freeMem = os.freemem();
-  const usedMem = totalMem - freeMem;
-  const percentage = (usedMem / totalMem) * 100;
-
-  return {
-    used: parseFloat((usedMem / (1024 ** 3)).toFixed(2)),
-    total: parseFloat((totalMem / (1024 ** 3)).toFixed(2)),
-    percentage: parseFloat(percentage.toFixed(2)),
-    status: getMetricStatus(percentage)
-  };
-}
-
-/**
- * Get disk metrics (Linux/Unix only)
- */
-async function getDiskMetrics() {
   try {
-    // Try to get disk usage from df command
-    const { stdout } = await execAsync('df -h / | tail -n 1');
-    const parts = stdout.trim().split(/\s+/);
-    
-    // Parse disk usage (example: /dev/sda1  500G  240G  260G  48% /)
-    const usedStr = parts[2];
-    const totalStr = parts[1];
-    const percentStr = parts[4];
-    
-    const used = parseFloat(usedStr);
-    const total = parseFloat(totalStr);
-    const percentage = parseFloat(percentStr);
+    const response = await fetch(VM_METRICS_URL, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(5000) // 5 second timeout
+    });
 
-    return {
-      used: used,
-      total: total,
-      percentage: percentage,
-      status: getMetricStatus(percentage)
-    };
+    if (!response.ok) {
+      throw new Error(`VM metrics service returned ${response.status}`);
+    }
+
+    const vmData = await response.json();
+
+    // Cache the response
+    cachedMetrics = vmData;
+    cacheTimestamp = now;
+
+    return vmData;
   } catch (error) {
-    // Fallback for Windows or if command fails
-    return {
-      used: 245,
-      total: 512,
-      percentage: 47.85,
-      status: 'healthy'
-    };
+    console.error('[VM Metrics Fetch Error]', error.message);
+    
+    // Return cached data if available, even if stale
+    if (cachedMetrics) {
+      console.warn('[VM Metrics] Using stale cache due to fetch error');
+      return cachedMetrics;
+    }
+    
+    throw error;
   }
 }
 
 /**
- * Get system uptime
+ * Format uptime seconds to human-readable string
  */
-function getUptimeMetrics() {
-  const uptimeSeconds = os.uptime();
-  const days = Math.floor(uptimeSeconds / 86400);
-  const hours = Math.floor((uptimeSeconds % 86400) / 3600);
-  const minutes = Math.floor((uptimeSeconds % 3600) / 60);
+function formatUptime(seconds) {
+  if (typeof seconds !== 'number' || isNaN(seconds) || seconds < 0) {
+    return '—';
+  }
   
-  const formatted = `${days}d ${hours}h ${minutes}m`;
-
-  return {
-    days,
-    hours,
-    minutes,
-    formatted,
-    status: 'healthy'
-  };
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  
+  return `${days}d ${hours}h ${minutes}m`;
 }
 
 /**
@@ -162,22 +130,52 @@ async function getContainerMetrics() {
 
 /**
  * Main metrics endpoint
+ * Fetches VM-wide system metrics from authoritative source
  */
 app.get('/api/metrics', async (_req, res) => {
   try {
-    const [cpu, memory, disk, uptime, containers] = await Promise.all([
-      getCPUUsage(),
-      Promise.resolve(getMemoryMetrics()),
-      getDiskMetrics(),
-      Promise.resolve(getUptimeMetrics()),
+    // Fetch VM metrics and container count in parallel
+    const [vmMetrics, containers] = await Promise.all([
+      fetchVMMetrics(),
       getContainerMetrics()
     ]);
 
+    // VM metrics are authoritative - validate and sanitize
+    const cpuUsage = typeof vmMetrics?.cpu?.usage_percent === 'number' 
+      ? Math.round(vmMetrics.cpu.usage_percent * 10) / 10 
+      : null;
+    
+    const memUsed = typeof vmMetrics?.memory?.used_percent === 'number'
+      ? Math.round(vmMetrics.memory.used_percent * 10) / 10
+      : null;
+    
+    const diskUsed = typeof vmMetrics?.disk?.used_percent === 'number'
+      ? Math.round(vmMetrics.disk.used_percent * 10) / 10
+      : null;
+    
+    const uptimeSeconds = typeof vmMetrics?.uptime?.seconds === 'number'
+      ? vmMetrics.uptime.seconds
+      : null;
+
+    // Build response with sanitized values
     const metrics = {
-      cpu,
-      memory,
-      disk,
-      uptime,
+      cpu: {
+        usage: cpuUsage !== null ? cpuUsage : 0,
+        status: cpuUsage !== null ? getMetricStatus(cpuUsage) : 'unknown'
+      },
+      memory: {
+        percentage: memUsed !== null ? memUsed : 0,
+        status: memUsed !== null ? getMetricStatus(memUsed) : 'unknown'
+      },
+      disk: {
+        percentage: diskUsed !== null ? diskUsed : 0,
+        status: diskUsed !== null ? getMetricStatus(diskUsed) : 'unknown'
+      },
+      uptime: {
+        seconds: uptimeSeconds !== null ? uptimeSeconds : 0,
+        formatted: formatUptime(uptimeSeconds),
+        status: uptimeSeconds !== null ? 'healthy' : 'unknown'
+      },
       containers,
       timestamp: new Date().toISOString()
     };
@@ -187,9 +185,13 @@ app.get('/api/metrics', async (_req, res) => {
     // Log detailed error server-side only
     console.error('[Metrics Error]', error.message);
     
-    // Return generic error to client (no stack traces)
-    res.status(500).json({ 
-      error: 'Unable to retrieve metrics',
+    // Return fallback metrics with unknown status (fail closed)
+    res.status(200).json({ 
+      cpu: { usage: 0, status: 'unknown' },
+      memory: { percentage: 0, status: 'unknown' },
+      disk: { percentage: 0, status: 'unknown' },
+      uptime: { seconds: 0, formatted: '—', status: 'unknown' },
+      containers: { running: 0, total: 0, status: 'unknown' },
       timestamp: new Date().toISOString()
     });
   }
@@ -219,9 +221,12 @@ app.use((err, _req, res, _next) => {
   });
 });
 
+const PORT = process.env.API_PORT || 3001;
+
 // Start server
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Sentinel API running on http://0.0.0.0:${PORT}`);
   console.log(`Metrics endpoint: http://0.0.0.0:${PORT}/api/metrics`);
   console.log(`Environment: ${IS_PRODUCTION ? 'production' : 'development'}`);
 });
+

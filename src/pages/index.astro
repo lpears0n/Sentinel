@@ -7,14 +7,27 @@ import DataFreshness from '../components/DataFreshness.astro';
 import { config } from '../config';
 import type { SystemMetrics } from '../types/metrics';
 
-const metrics: SystemMetrics = {
+// Fetch metrics from API at build time (will be hydrated client-side)
+let metrics: SystemMetrics = {
   cpu: { usage: 0, status: 'unknown' },
-  memory: { used: 0, total: 0, percentage: 0, status: 'unknown' },
-  disk: { used: 0, total: 0, percentage: 0, status: 'unknown' },
-  uptime: { days: 0, hours: 0, minutes: 0, formatted: '—', status: 'unknown' },
+  memory: { percentage: 0, status: 'unknown' },
+  disk: { percentage: 0, status: 'unknown' },
+  uptime: { seconds: 0, formatted: '—', status: 'unknown' },
   containers: { running: 0, total: 0, status: 'unknown' },
   timestamp: new Date().toISOString()
 };
+
+try {
+  const apiUrl = import.meta.env.PUBLIC_API_URL || 'http://localhost:3001';
+  const response = await fetch(`${apiUrl}/api/metrics`, {
+    signal: AbortSignal.timeout(5000)
+  });
+  if (response.ok) {
+    metrics = await response.json();
+  }
+} catch (error: any) {
+  console.warn('[Sentinel] Failed to fetch metrics at build time:', error?.message || error);
+}
 ---
 
 <BaseLayout title="Sentinel">
@@ -83,52 +96,54 @@ const metrics: SystemMetrics = {
         </div>
         
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <!-- Row 1: CPU and Memory (2/3 width on desktop) -->
+          <!-- CPU -->
           <MetricCard
             title="CPU Usage"
             metricKey="cpu"
             value={metrics.cpu.usage.toFixed(1)}
             unit="%"
             status={metrics.cpu.status}
-            subtitle="Aggregate across all cores"
+            subtitle="VM-wide CPU usage"
             trend="steady"
             delay={0}
           />
           
+          <!-- Memory -->
           <MetricCard
             title="Memory"
             metricKey="memory"
-            value={metrics.memory.used.toFixed(1)}
-            unit={`/ ${metrics.memory.total} GB`}
+            value={metrics.memory.percentage.toFixed(1)}
+            unit="%"
             status={metrics.memory.status}
-            subtitle={`${metrics.memory.percentage.toFixed(1)}% utilized`}
+            subtitle="VM memory pressure"
             trend="steady"
             delay={100}
           />
           
-          <!-- Uptime spans full row for visual weight -->
+          <!-- Uptime -->
           <div class="md:col-span-1">
             <MetricCard
               title="Uptime"
               metricKey="uptime"
               value={metrics.uptime.formatted}
               status={metrics.uptime.status}
-              subtitle="Host has been running"
+              subtitle="VM uptime"
               delay={200}
             />
           </div>
           
-          <!-- Row 2: Disk and Containers -->
+          <!-- Disk -->
           <MetricCard
             title="Disk Space"
             metricKey="disk"
-            value={metrics.disk.used}
-            unit={`/ ${metrics.disk.total} GB`}
+            value={metrics.disk.percentage.toFixed(1)}
+            unit="%"
             status={metrics.disk.status}
-            subtitle={`${metrics.disk.percentage.toFixed(1)}% utilized`}
+            subtitle="Root filesystem usage"
             delay={300}
           />
           
+          <!-- Containers -->
           <MetricCard
             title="Containers"
             metricKey="containers"
@@ -161,7 +176,7 @@ const metrics: SystemMetrics = {
 
 <script>
   const REFRESH_INTERVAL = 30000; // 30 seconds
-  let previousMetrics: any = null;
+  let previousMetrics = null;
 
   const statusColors = {
     healthy: 'bg-green-500/10 text-green-600 dark:text-green-400',
@@ -184,7 +199,7 @@ const metrics: SystemMetrics = {
     unknown: ''
   };
 
-  function updateMetricStatus(metricKey: string, status: string) {
+  function updateMetricStatus(metricKey, status) {
     const badge = document.querySelector(`[data-metric="${metricKey}-status-badge"]`);
     const dot = document.querySelector(`[data-metric="${metricKey}-status-dot"]`);
     
@@ -204,16 +219,17 @@ const metrics: SystemMetrics = {
       if (!response.ok) throw new Error('API error');
       
       const metrics = await response.json();
-      
+
       // Update timestamp for freshness indicator
       const freshnessEvent = new CustomEvent('metrics-updated', { detail: { timestamp: metrics.timestamp } });
       window.dispatchEvent(freshnessEvent);
-      
+
       // Calculate deltas if we have previous data
       const cpuDelta = previousMetrics ? (metrics.cpu.usage - previousMetrics.cpu.usage).toFixed(1) : null;
       const memDelta = previousMetrics ? (metrics.memory.percentage - previousMetrics.memory.percentage).toFixed(1) : null;
-      
-      // Update CPU
+      const diskDelta = previousMetrics ? (metrics.disk.percentage - previousMetrics.disk.percentage).toFixed(1) : null;
+
+      // CPU
       const cpuValue = document.querySelector('[data-metric="cpu-value"]');
       const cpuTrend = document.querySelector('[data-metric="cpu-trend"]');
       if (cpuValue) cpuValue.textContent = metrics.cpu.usage.toFixed(1);
@@ -228,15 +244,13 @@ const metrics: SystemMetrics = {
           cpuTrend.innerHTML = `<span class="text-gray-500 dark:text-gray-500">— steady</span>`;
         }
       }
-      
-      // Update Memory
+
+      // Memory
       const memValue = document.querySelector('[data-metric="memory-value"]');
       const memUnit = document.querySelector('[data-metric="memory-unit"]');
-      const memPercent = document.querySelector('[data-metric="memory-percent"]');
       const memTrend = document.querySelector('[data-metric="memory-trend"]');
-      if (memValue) memValue.textContent = metrics.memory.used.toFixed(1);
-      if (memUnit) memUnit.textContent = `/ ${metrics.memory.total} GB`;
-      if (memPercent) memPercent.textContent = `${metrics.memory.percentage.toFixed(1)}% utilized`;
+      if (memValue) memValue.textContent = metrics.memory.percentage.toFixed(1);
+      if (memUnit) memUnit.textContent = '%';
       updateMetricStatus('memory', metrics.memory.status);
       if (memTrend && memDelta !== null) {
         const delta = parseFloat(memDelta);
@@ -248,36 +262,37 @@ const metrics: SystemMetrics = {
           memTrend.innerHTML = `<span class="text-gray-500 dark:text-gray-500">— steady</span>`;
         }
       }
-      
-      // Update Uptime
+
+      // Uptime
       const uptimeValue = document.querySelector('[data-metric="uptime-value"]');
       if (uptimeValue) uptimeValue.textContent = metrics.uptime.formatted;
       updateMetricStatus('uptime', metrics.uptime.status);
-      
-      // Update Disk
+
+      // Disk
       const diskValue = document.querySelector('[data-metric="disk-value"]');
       const diskUnit = document.querySelector('[data-metric="disk-unit"]');
-      const diskPercent = document.querySelector('[data-metric="disk-percent"]');
-      if (diskValue) diskValue.textContent = metrics.disk.used;
-      if (diskUnit) diskUnit.textContent = `/ ${metrics.disk.total} GB`;
-      if (diskPercent) diskPercent.textContent = `${metrics.disk.percentage.toFixed(1)}% utilized`;
+      if (diskValue) diskValue.textContent = metrics.disk.percentage.toFixed(1);
+      if (diskUnit) diskUnit.textContent = '%';
       updateMetricStatus('disk', metrics.disk.status);
-      
-      // Update Containers
+
+      // Containers
       const containersValue = document.querySelector('[data-metric="containers-value"]');
       const containersUnit = document.querySelector('[data-metric="containers-unit"]');
-      if (containersValue && metrics.containers.total > 0) {
-        containersValue.textContent = metrics.containers.running;
-      }
-      if (containersUnit && metrics.containers.total > 0) {
-        containersUnit.textContent = `/ ${metrics.containers.total}`;
-      }
+      if (containersValue) containersValue.textContent = metrics.containers.running;
+      if (containersUnit) containersUnit.textContent = `/ ${metrics.containers.total}`;
       updateMetricStatus('containers', metrics.containers.status);
-      
-      // Update system state in header
+
+      // Update system state in header (containers + uptime)
+      const systemContainers = document.querySelector('[data-system="containers"]');
+      if (systemContainers) {
+        systemContainers.textContent = `${metrics.containers.running} containers running`;
+      }
+
       const systemUptime = document.querySelector('[data-system="uptime"]');
-      if (systemUptime) systemUptime.textContent = `${metrics.uptime.formatted} uptime`;
-      
+      if (systemUptime) {
+        systemUptime.textContent = `${metrics.uptime.formatted} uptime`;
+      }
+
       previousMetrics = metrics;
     } catch (error) {
       console.error('Failed to refresh metrics:', error);

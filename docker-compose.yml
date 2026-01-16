@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   sentinel:
@@ -7,18 +7,30 @@ services:
       dockerfile: Dockerfile
     container_name: sentinel-hub
     restart: unless-stopped
+
     ports:
-      # Map to private IP - adjust based on your VM setup
+      # Bind to VM private IP only (keeps it off localhost)
       - "10.10.10.20:4000:4000"  # Frontend
-      - "10.10.10.20:3101:3001"  # API (optional, can be internal only)
+      - "10.10.10.20:3101:3001"  # API (host 3101 -> container 3001)
+
     environment:
       - NODE_ENV=production
       - API_PORT=3001
+
+      # VM metrics service endpoint (authoritative source)
+      - VM_METRICS_URL=http://10.10.10.20:9101/metrics
+
+    # Fix host.docker.internal on Linux
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
     volumes:
-      # Mount Docker socket for container metrics (read-only)
+      # Docker socket for container count metrics (read-only)
       - /var/run/docker.sock:/var/run/docker.sock:ro
+
     networks:
       - sentinel-network
+
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4000"]
       interval: 30s
@@ -29,3 +41,4 @@ services:
 networks:
   sentinel-network:
     driver: bridge
+
