@@ -5,11 +5,6 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 const app = express();
-const PORT = process.env.API_PORT || 4001
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Sentinel API listening on ${PORT}`)
-})
-
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 // VM metrics service configuration
@@ -226,9 +221,12 @@ app.use((err, _req, res, _next) => {
   });
 });
 
+const PORT = process.env.API_PORT || 4001;
+
 // Start server
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Sentinel API running on http://0.0.0.0:${PORT}`);
   console.log(`Metrics endpoint: http://0.0.0.0:${PORT}/api/metrics`);
   console.log(`Environment: ${IS_PRODUCTION ? 'production' : 'development'}`);
 });
+
