@@ -5,7 +5,11 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 const app = express();
-const PORT = process.env.API_PORT || 3001;
+const PORT = process.env.API_PORT || 3001
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Sentinel API listening on ${PORT}`)
+})
+
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 // VM metrics service configuration
