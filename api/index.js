@@ -221,7 +221,7 @@ app.use((err, _req, res, _next) => {
   });
 });
 
-const PORT = process.env.API_PORT || 4001;
+const PORT = process.env.API_PORT || 3001;
 
 // Start server
 app.listen(PORT, '0.0.0.0', () => {
